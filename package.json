@@ -1,13 +1,13 @@
 {
   "name": "jibo-spanish-proxy",
   "version": "1.0.0",
-  "description": "Node.js proxy server for Spanish audio transcription, translation, and phonetic adaptation for Jibo",
+  "description": "Node.js proxy server for Spanish audio transcription, translation, and phonetic adaptation for Jibo using Groq",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js"
   },
-  "keywords": ["jibo", "spanish", "transcription", "translation", "openai", "whisper"],
+  "keywords": ["jibo", "spanish", "transcription", "translation", "groq", "whisper"],
   "author": "libriddev",
   "license": "MIT",
   "dependencies": {
@@ -15,8 +15,7 @@
     "axios": "^1.6.0",
     "dotenv": "^16.3.1",
     "openai": "^4.24.0",
-    "multer": "^1.4.5-lts.1",
-    "uuid": "^9.0.1"
+    "multer": "^1.4.5-lts.1"
   },
   "devDependencies": {
     "nodemon": "^3.0.1"

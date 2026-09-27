@@ -12,11 +12,15 @@ const app = express();
 const port = process.env.PORT || 3000;
 const fiveXOneBaseUrl = (process.env.FIVE_X_ONE_URL || "https://api.5x1.com:80").replace(/\/$/, "");
 
-if (!process.env.OPENAI_API_KEY) {
-  console.warn("OPENAI_API_KEY is not configured.");
+if (!process.env.GROQ_API_KEY) {
+  console.warn("GROQ_API_KEY is not configured.");
 }
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+// Groq provides an OpenAI-compatible API, so the OpenAI SDK can be reused.
+const groq = new OpenAI({
+  apiKey: process.env.GROQ_API_KEY,
+  baseURL: "https://api.groq.com/openai/v1"
+});
 
 app.use(express.json());
 
@@ -32,20 +36,20 @@ const upload = multer({
 });
 
 async function transcribeSpanishAudio(filePath) {
-  const result = await openai.audio.transcriptions.create({
+  const result = await groq.audio.transcriptions.create({
     file: fs.createReadStream(filePath),
-    model: "whisper-1",
+    model: process.env.GROQ_TRANSCRIPTION_MODEL || "whisper-large-v3-turbo",
     language: "es",
     response_format: "json"
   });
 
-  if (!result?.text) throw new Error("Whisper returned an empty transcription.");
+  if (!result?.text) throw new Error("Groq Whisper returned an empty transcription.");
   return result.text.trim();
 }
 
 async function translateToEnglish(spanishText) {
-  const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_TRANSLATION_MODEL || "gpt-4o-mini",
+  const completion = await groq.chat.completions.create({
+    model: process.env.GROQ_TRANSLATION_MODEL || "llama-3.3-70b-versatile",
     messages: [
       {
         role: "system",
@@ -121,8 +125,8 @@ async function askFiveXOneServer(englishText, sessionId) {
 }
 
 async function translateBackToSpanishWithPhonetics(englishText) {
-  const completion = await openai.chat.completions.create({
-    model: process.env.OPENAI_TRANSLATION_MODEL || "gpt-4o-mini",
+  const completion = await groq.chat.completions.create({
+    model: process.env.GROQ_TRANSLATION_MODEL || "llama-3.3-70b-versatile",
     response_format: { type: "json_object" },
     messages: [
       {
