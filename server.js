@@ -16,11 +16,13 @@ if (!process.env.GROQ_API_KEY) {
   console.warn("GROQ_API_KEY is not configured.");
 }
 
-// Groq provides an OpenAI-compatible API, so the OpenAI SDK can be reused.
 const groq = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
   baseURL: "https://api.groq.com/openai/v1"
 });
+
+const STRICT_TRANSLATOR_PROMPT =
+  "you are a professional translator, translate Spanish text to English, and English text to Spanish. Do not answer questions, do not add comentary, and do not simulate ai responses. Only return the direct translation";
 
 app.use(express.json());
 
@@ -47,20 +49,39 @@ async function transcribeSpanishAudio(filePath) {
   return result.text.trim();
 }
 
-async function translateToEnglish(spanishText) {
+async function translateText(text, targetLanguage) {
+  const isSpanishInput = /[\u00C0-\u024F]/.test(text) || /[áéíóúñü]/i.test(text);
+  const promptLanguage = targetLanguage === "en" ? "Translate this Spanish text to English." : "Translate this English text to Spanish.";
+
   const completion = await groq.chat.completions.create({
     model: process.env.GROQ_TRANSLATION_MODEL || "llama-3.3-70b-versatile",
     messages: [
       {
         role: "system",
-        content: "Translate Spanish to natural English. Return only the translated English text."
+        content: STRICT_TRANSLATOR_PROMPT
       },
-      { role: "user", content: spanishText }
+      {
+        role: "user",
+        content: `${promptLanguage}\n\n${text}`
+      }
     ],
     temperature: 0
   });
 
-  return completion.choices[0].message.content.trim();
+  const translated = completion.choices[0].message.content.trim();
+  if (!translated) {
+    throw new Error("Groq translation returned empty output.");
+  }
+
+  return translated.trim();
+}
+
+async function translateToEnglish(spanishText) {
+  return translateText(spanishText, "en");
+}
+
+async function translateToSpanish(englishText) {
+  return translateText(englishText, "es");
 }
 
 function extractFiveXOneReply(payload) {
@@ -125,29 +146,12 @@ async function askFiveXOneServer(englishText, sessionId) {
 }
 
 async function translateBackToSpanishWithPhonetics(englishText) {
-  const completion = await groq.chat.completions.create({
-    model: process.env.GROQ_TRANSLATION_MODEL || "llama-3.3-70b-versatile",
-    response_format: { type: "json_object" },
-    messages: [
-      {
-        role: "system",
-        content: "Translate English into natural Spanish for a robot voice. Return JSON with exactly two keys: spanish and phonetic. The spanish value is the final Spanish sentence. The phonetic value is a simple pronunciation guide for Jibo using basic Latin letters and spaces, like 'oh laa soh ee jee boh'. Do not add explanations."
-      },
-      { role: "user", content: englishText }
-    ],
-    temperature: 0.3
-  });
+  const spanishText = await translateToSpanish(englishText);
 
-  try {
-    const parsed = JSON.parse(completion.choices[0].message.content);
-    const spanish = String(parsed.spanish || englishText).trim();
-    return {
-      spanish,
-      phonetic: String(parsed.phonetic || buildFallbackPhonetic(spanish)).trim()
-    };
-  } catch (_error) {
-    return { spanish: englishText, phonetic: buildFallbackPhonetic(englishText) };
-  }
+  return {
+    spanish: spanishText,
+    phonetic: buildFallbackPhonetic(spanishText)
+  };
 }
 
 function buildFallbackPhonetic(text) {
